@@ -1,0 +1,95 @@
+# =============================================================================
+# Claude Code Clone - Terraform Variables
+# =============================================================================
+# Copy this file to terraform.tfvars and fill in your values.
+# NEVER commit terraform.tfvars to version control (it contains secrets).
+# =============================================================================
+
+# --- General ---
+project_name = "claude-code"
+environment  = "dev"    # dev, staging, prod
+aws_region   = "us-east-1"
+
+# --- Network ---
+vpc_cidr              = "10.0.0.0/16"
+public_subnet_cidrs   = ["10.0.1.0/24", "10.0.2.0/24"]
+private_subnet_cidrs  = ["10.0.10.0/24", "10.0.11.0/24"]
+database_subnet_cidrs = ["10.0.20.0/24", "10.0.21.0/24"]
+
+# --- Compute (ECS Fargate) ---
+# api_container_image = "123456789.dkr.ecr.us-east-1.amazonaws.com/claude-code-api:latest"
+api_cpu           = 1024    # 1 vCPU (256, 512, 1024, 2048, 4096)
+api_memory        = 2048    # 2 GB
+api_desired_count = 2       # Number of running tasks
+api_min_count     = 2       # Minimum for auto-scaling
+api_max_count     = 20      # Maximum for auto-scaling
+api_port          = 3100
+
+# --- Database (RDS PostgreSQL) ---
+db_instance_class          = "db.t4g.medium"   # 2 vCPU, 4 GB (prod: db.r6g.large)
+db_allocated_storage       = 100               # GB
+db_name                    = "claude_code"
+db_username                = "claude_admin"
+db_multi_az                = true              # false for dev to save cost
+db_backup_retention_period = 7
+db_create_read_replica     = false             # true for 100+ users
+
+# --- Cache (ElastiCache Redis) ---
+redis_node_type       = "cache.t4g.micro"   # 0.5 GB (prod: cache.t4g.small)
+redis_num_cache_nodes = 1                    # 2 for prod (replication)
+
+# --- Storage (S3) ---
+session_retention_days = 365
+
+# --- Auth (Cognito) ---
+cognito_callback_urls = ["http://localhost:14232/callback"]
+cognito_logout_urls   = ["http://localhost:14232/logout"]
+
+# --- LLM ---
+llm_provider = "anthropic"    # anthropic, bedrock, azure, local
+
+# IMPORTANT: Set this via environment variable instead of in this file:
+#   export TF_VAR_anthropic_api_key="sk-ant-api03-..."
+# Or uncomment below (NOT recommended for version control):
+# anthropic_api_key = "sk-ant-api03-..."
+
+default_model = "claude-sonnet-4-20250514"
+
+# --- Lambda (Tool Execution) ---
+lambda_memory_bash             = 2048    # MB
+lambda_timeout_bash            = 300     # seconds (5 min max)
+lambda_memory_file_ops         = 1024    # MB
+lambda_provisioned_concurrency = 0       # Set to 10+ for low-latency prod
+
+# --- Monitoring ---
+# alarm_email = "ops@example.com"
+enable_detailed_monitoring = false    # true for prod (additional cost)
+
+# --- Domain (Optional) ---
+# domain_name     = "api.claude-code.example.com"
+# certificate_arn = "arn:aws:acm:us-east-1:123456789:certificate/abc-123"
+
+# =============================================================================
+# Cost Estimates (approximate monthly):
+#
+# Dev (this config):
+#   ECS:     ~$60   (2 tasks x 1 vCPU x 2 GB)
+#   RDS:     ~$135  (t4g.medium, Multi-AZ)
+#   Redis:   ~$12   (t4g.micro)
+#   ALB:     ~$18
+#   Lambda:  ~$2    (low usage)
+#   NAT:     ~$35
+#   Other:   ~$10
+#   --------
+#   Total:   ~$272/mo (infrastructure only, excludes LLM tokens)
+#
+# Prod (scale up):
+#   Increase api_cpu to 2048, api_memory to 4096
+#   Change db_instance_class to db.r6g.large
+#   Change redis_node_type to cache.t4g.small
+#   Set db_create_read_replica = true
+#   Set lambda_provisioned_concurrency = 10
+#   Set enable_detailed_monitoring = true
+#   --------
+#   Total:   ~$600-800/mo (infrastructure only)
+# =============================================================================
