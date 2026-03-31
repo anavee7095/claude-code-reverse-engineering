@@ -82,6 +82,11 @@ resource "aws_cognito_user_pool" "main" {
     advanced_security_mode = var.environment == "prod" ? "ENFORCED" : "OFF"
   }
 
+  # Post-confirmation Lambda trigger
+  lambda_config {
+    post_confirmation = aws_lambda_function.post_confirmation.arn
+  }
+
   # Deletion protection
   deletion_protection = var.environment == "prod" ? "ACTIVE" : "INACTIVE"
 

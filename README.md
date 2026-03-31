@@ -343,7 +343,7 @@ Deployment Options
 
 | Scale | Supabase + API | AWS Full | Hybrid (Local GPU) |
 |-------|:--------------:|:--------:|:-------------------:|
-| **Solo** (1 dev) | $9–103/mo | $180/mo | $50/mo |
+| **Solo** (1 dev) | $9–103/mo | $240–280/mo | $50/mo |
 | **Team** (10 devs) | $46–116/dev | $65–110/dev | $35–60/dev |
 | **Enterprise** (100 devs) | N/A | $45–111/dev | **$25/dev** |
 

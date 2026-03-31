@@ -3,3 +3,12 @@
 *.swo
 node_modules/
 .env
+
+# Terraform
+terraform.tfvars
+*.tfvars
+!terraform.tfvars.example
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl

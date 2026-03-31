@@ -86,11 +86,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "sessions" {
   }
 }
 
-resource "aws_s3_bucket_cors_configuration" "sessions" {
-  bucket = aws_s3_bucket.sessions.id
-
-  # No CORS rules - bucket is accessed only from server side
-}
+# No CORS configuration needed - bucket is accessed only from server side
 
 # --- S3 Bucket Policy (restrict to VPC endpoint) ---
 
