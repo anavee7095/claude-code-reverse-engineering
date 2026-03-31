@@ -1,0 +1,953 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude Code CLI — Reverse Engineering</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+  :root {
+    --bg: oklch(0.13 0.02 260);
+    --bg-card: oklch(0.17 0.02 260);
+    --bg-hover: oklch(0.20 0.03 260);
+    --border: oklch(0.28 0.03 260);
+    --text: oklch(0.92 0.01 260);
+    --text-dim: oklch(0.60 0.02 260);
+    --accent: oklch(0.75 0.18 160);
+    --accent2: oklch(0.70 0.20 280);
+    --accent3: oklch(0.75 0.18 50);
+    --accent4: oklch(0.70 0.20 330);
+    --danger: oklch(0.65 0.22 25);
+    --success: oklch(0.72 0.19 150);
+    --warn: oklch(0.78 0.16 80);
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* Hero */
+  .hero {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 800px 600px at 30% 20%, oklch(0.30 0.15 160 / 0.15), transparent),
+      radial-gradient(ellipse 600px 800px at 70% 80%, oklch(0.25 0.15 280 / 0.12), transparent),
+      radial-gradient(ellipse 400px 400px at 50% 50%, oklch(0.20 0.10 50 / 0.08), transparent);
+    pointer-events: none;
+  }
+
+  .hero-badge {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: var(--accent);
+    border: 1px solid oklch(0.75 0.18 160 / 0.3);
+    padding: 0.4rem 1.2rem;
+    border-radius: 100px;
+    margin-bottom: 2rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero h1 {
+    font-size: clamp(2.5rem, 6vw, 5rem);
+    font-weight: 900;
+    text-align: center;
+    letter-spacing: -0.03em;
+    line-height: 1.1;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero h1 span {
+    background: linear-gradient(135deg, var(--accent), var(--accent2), var(--accent3));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero-sub {
+    font-size: clamp(1rem, 2vw, 1.25rem);
+    color: var(--text-dim);
+    text-align: center;
+    max-width: 700px;
+    margin-top: 1.5rem;
+    position: relative;
+    z-index: 1;
+  }
+
+  .hero-stats {
+    display: flex;
+    gap: 2rem;
+    margin-top: 3rem;
+    flex-wrap: wrap;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+  }
+
+  .stat {
+    text-align: center;
+  }
+
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  .stat-label {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+  }
+
+  .scroll-hint {
+    position: absolute;
+    bottom: 2rem;
+    animation: bounce 2s infinite;
+    color: var(--text-dim);
+    font-size: 1.5rem;
+  }
+
+  @keyframes bounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(8px); }
+  }
+
+  /* Section base */
+  section {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 6rem 2rem;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 0.5rem;
+  }
+
+  .section-title {
+    font-size: clamp(1.8rem, 4vw, 2.8rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin-bottom: 1rem;
+  }
+
+  .section-desc {
+    color: var(--text-dim);
+    max-width: 600px;
+    margin-bottom: 3rem;
+  }
+
+  /* Architecture Diagram */
+  .arch-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .arch-layer {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    cursor: default;
+  }
+
+  .arch-layer:hover {
+    border-color: var(--accent);
+    transform: translateX(4px);
+    box-shadow: -4px 0 20px oklch(0.75 0.18 160 / 0.1);
+  }
+
+  .arch-layer-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .arch-layer-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1rem;
+    flex-shrink: 0;
+  }
+
+  .arch-layer-name {
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+
+  .arch-layer-tag {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    background: oklch(0.25 0.03 260);
+    color: var(--text-dim);
+    margin-left: auto;
+  }
+
+  .arch-modules {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .arch-mod {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: oklch(0.15 0.02 260);
+    transition: all 0.2s;
+  }
+
+  .arch-mod:hover {
+    background: oklch(0.22 0.04 260);
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  /* Document Grid */
+  .doc-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .doc-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    text-decoration: none;
+    color: inherit;
+    display: block;
+  }
+
+  .doc-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    border-radius: 12px 12px 0 0;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+
+  .doc-card:hover {
+    border-color: transparent;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 30px oklch(0 0 0 / 0.3);
+  }
+
+  .doc-card:hover::before { opacity: 1; }
+
+  .doc-card:nth-child(1)::before { background: linear-gradient(90deg, oklch(0.75 0.18 160), oklch(0.70 0.15 180)); }
+  .doc-card:nth-child(2)::before { background: linear-gradient(90deg, oklch(0.70 0.20 280), oklch(0.65 0.18 300)); }
+  .doc-card:nth-child(3)::before { background: linear-gradient(90deg, oklch(0.65 0.22 25), oklch(0.70 0.20 40)); }
+  .doc-card:nth-child(4)::before { background: linear-gradient(90deg, oklch(0.78 0.16 80), oklch(0.75 0.14 100)); }
+  .doc-card:nth-child(5)::before { background: linear-gradient(90deg, oklch(0.70 0.20 330), oklch(0.65 0.18 350)); }
+  .doc-card:nth-child(6)::before { background: linear-gradient(90deg, oklch(0.72 0.19 150), oklch(0.68 0.17 170)); }
+  .doc-card:nth-child(7)::before { background: linear-gradient(90deg, oklch(0.68 0.15 220), oklch(0.65 0.13 240)); }
+  .doc-card:nth-child(8)::before { background: linear-gradient(90deg, oklch(0.75 0.12 60), oklch(0.72 0.14 80)); }
+
+  .doc-num {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    margin-bottom: 0.5rem;
+  }
+
+  .doc-title {
+    font-weight: 700;
+    font-size: 1.15rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .doc-desc {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+    line-height: 1.5;
+  }
+
+  .doc-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .doc-tag {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    background: oklch(0.22 0.03 260);
+    color: var(--text-dim);
+  }
+
+  .doc-lines {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    color: var(--text-dim);
+    position: absolute;
+    top: 1.5rem;
+    right: 1.5rem;
+  }
+
+  /* Pipeline Section */
+  .pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    position: relative;
+  }
+
+  .pipeline::before {
+    content: '';
+    position: absolute;
+    left: 18px;
+    top: 40px;
+    bottom: 40px;
+    width: 2px;
+    background: linear-gradient(to bottom, var(--accent), var(--accent2), var(--accent3), var(--accent4));
+    opacity: 0.3;
+  }
+
+  .pipe-step {
+    display: flex;
+    align-items: flex-start;
+    gap: 1.25rem;
+    padding: 1rem 0;
+    position: relative;
+  }
+
+  .pipe-dot {
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 1;
+  }
+
+  .pipe-content {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+  }
+
+  .pipe-title {
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+  }
+
+  .pipe-desc {
+    font-size: 0.85rem;
+    color: var(--text-dim);
+  }
+
+  /* Verification Bar */
+  .verify-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .verify-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+
+  .verify-label {
+    font-family: var(--mono);
+    font-size: 0.8rem;
+    width: 80px;
+    flex-shrink: 0;
+    color: var(--text-dim);
+  }
+
+  .verify-bar {
+    flex: 1;
+    height: 28px;
+    background: oklch(0.18 0.02 260);
+    border-radius: 6px;
+    overflow: hidden;
+    position: relative;
+  }
+
+  .verify-fill {
+    height: 100%;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    padding-left: 0.75rem;
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: oklch(0.15 0 0);
+    transition: width 1.5s ease;
+    width: 0;
+  }
+
+  .verify-fill.animate { width: var(--w); }
+
+  .verify-count {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    width: 50px;
+    text-align: right;
+    color: var(--text-dim);
+  }
+
+  /* Cost Table */
+  .cost-table {
+    width: 100%;
+    border-collapse: separate;
+    border-spacing: 0;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .cost-table th {
+    background: oklch(0.20 0.03 260);
+    padding: 1rem 1.25rem;
+    text-align: left;
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+  }
+
+  .cost-table td {
+    padding: 1rem 1.25rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+  }
+
+  .cost-table tr:hover td {
+    background: oklch(0.18 0.02 260);
+  }
+
+  .cost-val {
+    font-family: var(--mono);
+    font-weight: 600;
+  }
+
+  .cost-best {
+    color: var(--success);
+  }
+
+  /* Caveat Cards */
+  .caveat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+
+  .caveat {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--danger);
+    border-radius: 0 8px 8px 0;
+    padding: 1.25rem;
+  }
+
+  .caveat-title {
+    font-weight: 700;
+    font-size: 0.9rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .caveat-desc {
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    line-height: 1.5;
+  }
+
+  .caveat-sev {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 3px;
+    margin-bottom: 0.5rem;
+  }
+
+  .sev-bug { background: oklch(0.30 0.15 25); color: oklch(0.85 0.15 25); }
+  .sev-warn { background: oklch(0.30 0.12 80); color: oklch(0.85 0.12 80); }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    border-top: 1px solid var(--border);
+  }
+
+  footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+
+  footer a:hover { text-decoration: underline; }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .hero-stats { gap: 1rem; }
+    .doc-grid { grid-template-columns: 1fr; }
+    .caveat-grid { grid-template-columns: 1fr; }
+    section { padding: 4rem 1.25rem; }
+    .cost-table { font-size: 0.8rem; }
+    .cost-table th, .cost-table td { padding: 0.75rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="hero-badge">Reverse Engineering &middot; March 2026</div>
+  <h1>Claude Code <span>CLI</span></h1>
+  <p class="hero-sub">Implementation-ready reverse engineering specifications for Anthropic's official CLI tool. 8 design documents, 19,800 lines, verified across 8 passes.</p>
+  <div class="hero-stats">
+    <div class="stat"><div class="stat-value">1,900</div><div class="stat-label">Source Files</div></div>
+    <div class="stat"><div class="stat-value">512K+</div><div class="stat-label">Lines of Code</div></div>
+    <div class="stat"><div class="stat-value">45+</div><div class="stat-label">Built-in Tools</div></div>
+    <div class="stat"><div class="stat-value">89</div><div class="stat-label">Feature Flags</div></div>
+    <div class="stat"><div class="stat-value">8</div><div class="stat-label">Verification Passes</div></div>
+  </div>
+  <div class="scroll-hint">&#8595;</div>
+</div>
+
+<!-- Architecture -->
+<section>
+  <div class="section-label">System Architecture</div>
+  <div class="section-title">Five-Layer Stack</div>
+  <p class="section-desc">The entire system is built on a layered architecture — from terminal rendering to API backends.</p>
+
+  <div class="arch-container">
+    <div class="arch-layer">
+      <div class="arch-layer-header">
+        <div class="arch-layer-icon" style="background:oklch(0.30 0.12 280);">&#9635;</div>
+        <div class="arch-layer-name">Terminal UI</div>
+        <div class="arch-layer-tag">React 19 + Custom Ink Fork</div>
+      </div>
+      <div class="arch-modules">
+        <div class="arch-mod">346 Components</div>
+        <div class="arch-mod">96-file Ink fork</div>
+        <div class="arch-mod">Yoga WASM</div>
+        <div class="arch-mod">85+ Hooks</div>
+        <div class="arch-mod">Commander.js</div>
+      </div>
+    </div>
+
+    <div class="arch-layer">
+      <div class="arch-layer-header">
+        <div class="arch-layer-icon" style="background:oklch(0.30 0.12 160);">&#9881;</div>
+        <div class="arch-layer-name">Core Engine</div>
+        <div class="arch-layer-tag">Tool Execution + Query</div>
+      </div>
+      <div class="arch-modules">
+        <div class="arch-mod">45+ Tools</div>
+        <div class="arch-mod">QueryEngine</div>
+        <div class="arch-mod">StreamingExecutor</div>
+        <div class="arch-mod">Cost Tracker</div>
+        <div class="arch-mod">buildTool() Factory</div>
+      </div>
+    </div>
+
+    <div class="arch-layer">
+      <div class="arch-layer-header">
+        <div class="arch-layer-icon" style="background:oklch(0.30 0.12 50);">&#10070;</div>
+        <div class="arch-layer-name">Extensions</div>
+        <div class="arch-layer-tag">6 Extension Points</div>
+      </div>
+      <div class="arch-modules">
+        <div class="arch-mod">MCP (8 transports)</div>
+        <div class="arch-mod">Plugins</div>
+        <div class="arch-mod">17 Skills</div>
+        <div class="arch-mod">27 Hook Events</div>
+        <div class="arch-mod">LSP</div>
+        <div class="arch-mod">Bridge</div>
+      </div>
+    </div>
+
+    <div class="arch-layer">
+      <div class="arch-layer-header">
+        <div class="arch-layer-icon" style="background:oklch(0.30 0.12 220);">&#9729;</div>
+        <div class="arch-layer-name">Services</div>
+        <div class="arch-layer-tag">API + Auth + Analytics</div>
+      </div>
+      <div class="arch-modules">
+        <div class="arch-mod">4 API Backends</div>
+        <div class="arch-mod">OAuth PKCE</div>
+        <div class="arch-mod">Datadog (44 events)</div>
+        <div class="arch-mod">OpenTelemetry</div>
+        <div class="arch-mod">5-source Settings</div>
+        <div class="arch-mod">12 Migrations</div>
+      </div>
+    </div>
+
+    <div class="arch-layer">
+      <div class="arch-layer-header">
+        <div class="arch-layer-icon" style="background:oklch(0.30 0.15 25);">&#9888;</div>
+        <div class="arch-layer-name">Security &amp; Permissions</div>
+        <div class="arch-layer-tag">7 Modes + AI Classifier</div>
+      </div>
+      <div class="arch-modules">
+        <div class="arch-mod">7 Permission Modes</div>
+        <div class="arch-mod">23 Bash Checks</div>
+        <div class="arch-mod">6-step Path Validation</div>
+        <div class="arch-mod">Auto-mode Classifier</div>
+        <div class="arch-mod">Keychain + Fallback</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Documents -->
+<section>
+  <div class="section-label">Design Documents</div>
+  <div class="section-title">8 Parts, 19,800 Lines</div>
+  <p class="section-desc">Each document is verified line-by-line against the actual source code.</p>
+
+  <div class="doc-grid">
+    <a class="doc-card" href="https://github.com/jung-wan-kim/claude-code-reverse-engineering/blob/main/docs/01-architecture-overview.md">
+      <div class="doc-num">PART 01</div>
+      <div class="doc-lines">1,101 lines</div>
+      <div class="doc-title">Architecture Overview</div>
+      <div class="doc-desc">5-phase bootstrap, 110 state fields, 89 feature flags, 7-layer config system, build pipeline.</div>
+      <div class="doc-tags">
+        <span class="doc-tag">Bootstrap</span>
+        <span class="doc-tag">Modules</span>
+        <span class="doc-tag">Feature Flags</span>
+        <span class="doc-tag">State</span>
+      </div>
+    </a>
+
+    <a class="doc-card" href="https://github.com/jung-wan-kim/claude-code-reverse-engineering/blob/main/docs/02-core-engine.md">
+      <div class="doc-num">PART 02</div>
+      <div class="doc-lines">1,352 lines</div>
+      <div class="doc-title">Core Engine</div>
+      <div class="doc-desc">Tool type system (60+ fields), query engine, 8-stage recovery chain, streaming executor, cost tracking.</div>
+      <div class="doc-tags">
+        <span class="doc-tag">Tools</span>
+        <span class="doc-tag">Query</span>
+        <span class="doc-tag">Streaming</span>
+        <span class="doc-tag">Recovery</span>
+      </div>
+    </a>
+
+    <a class="doc-card" href="https://github.com/jung-wan-kim/claude-code-reverse-engineering/blob/main/docs/03-permission-security.md">
+      <div class="doc-num">PART 03</div>
+      <div class="doc-lines">1,178 lines</div>
+      <div class="doc-title">Permission &amp; Security</div>
+      <div class="doc-desc">4-step permission pipeline, auto-mode AI classifier, 23 bash security checks, TOCTOU warnings.</div>
+      <div class="doc-tags">
+        <span class="doc-tag">Permissions</span>
+        <span class="doc-tag">Shell Security</span>
+        <span class="doc-tag">Path Validation</span>
+        <span class="doc-tag">Classifier</span>
+      </div>
+    </a>
+
+    <a class="doc-card" href="https://github.com/jung-wan-kim/claude-code-reverse-engineering/blob/main/docs/04-multi-agent-memory.md">
+      <div class="doc-num">PART 04</div>
+      <div class="doc-lines">1,416 lines</div>
+      <div class="doc-title">Multi-Agent &amp; Memory</div>
+      <div class="doc-desc">Coordinator mode, 3 swarm backends (fork/spawn/in-process), 5-layer memory hierarchy, team sync.</div>
+      <div class="doc-tags">
+        <span class="doc-tag">Agents</span>
+        <span class="doc-tag">Memory</span>
+        <span class="doc-tag">Team Sync</span>
+        <span class="doc-tag">Tasks</span>
+      </div>
+    </a>
+
+    <a class="doc-card" href="https://github.com/jung-wan-kim/claude-code-reverse-engineering/blob/main/docs/05-extension-systems.md">
+      <div class="doc-num">PART 05</div>
+      <div class="doc-lines">1,709 lines</div>
+      <div class="doc-title">Extension Systems</div>
+      <div class="doc-desc">MCP integration (8 transport types), plugin marketplace, 17 bundled skills, 27 hook events, bridge protocol.</div>
+      <div class="doc-tags">
+        <span class="doc-tag">MCP</span>
+        <span class="doc-tag">Plugins</span>
+        <span class="doc-tag">Skills</span>
+        <span class="doc-tag">Hooks</span>
+        <span class="doc-tag">Bridge</span>
+      </div>
+    </a>
+
+    <a class="doc-card" href="https://github.com/jung-wan-kim/claude-code-reverse-engineering/blob/main/docs/06-ui-layer.md">
+      <div class="doc-num">PART 06</div>
+      <div class="doc-lines">1,784 lines</div>
+      <div class="doc-title">UI Layer</div>
+      <div class="doc-desc">Custom Ink reconciler (React 19), Yoga WASM layout, 346 components, capture/bubble event system.</div>
+      <div class="doc-tags">
+        <span class="doc-tag">Ink Fork</span>
+        <span class="doc-tag">Yoga</span>
+        <span class="doc-tag">Components</span>
+        <span class="doc-tag">Events</span>
+      </div>
+    </a>
+
+    <a class="doc-card" href="https://github.com/jung-wan-kim/claude-code-reverse-engineering/blob/main/docs/07-services-infrastructure.md">
+      <div class="doc-num">PART 07</div>
+      <div class="doc-lines">1,845 lines</div>
+      <div class="doc-title">Services &amp; Infrastructure</div>
+      <div class="doc-desc">API client factory (4 backends), OAuth flow, analytics pipeline, token estimation, migration chain.</div>
+      <div class="doc-tags">
+        <span class="doc-tag">API</span>
+        <span class="doc-tag">OAuth</span>
+        <span class="doc-tag">Datadog</span>
+        <span class="doc-tag">Migrations</span>
+      </div>
+    </a>
+
+    <a class="doc-card" href="https://github.com/jung-wan-kim/claude-code-reverse-engineering/blob/main/docs/08-types-schemas-api.md">
+      <div class="doc-num">PART 08</div>
+      <div class="doc-lines">2,194 lines</div>
+      <div class="doc-title">Types, Schemas &amp; API</div>
+      <div class="doc-desc">SettingsJson (~100 fields), Zod v4 schemas, branded IDs, AppState, 60+ env vars, analytics events.</div>
+      <div class="doc-tags">
+        <span class="doc-tag">Types</span>
+        <span class="doc-tag">Zod</span>
+        <span class="doc-tag">Settings</span>
+        <span class="doc-tag">Env Vars</span>
+      </div>
+    </a>
+  </div>
+</section>
+
+<!-- Tool Execution Pipeline -->
+<section>
+  <div class="section-label">Core Flow</div>
+  <div class="section-title">Tool Execution Pipeline</div>
+  <p class="section-desc">Every user query flows through this pipeline — from input to tool execution to streaming response.</p>
+
+  <div class="pipeline">
+    <div class="pipe-step">
+      <div class="pipe-dot" style="background:oklch(0.30 0.15 160);color:var(--accent);">1</div>
+      <div class="pipe-content">
+        <div class="pipe-title">User Input &rarr; QueryEngine</div>
+        <div class="pipe-desc">System prompt assembly, message normalization, beta headers, tool schema build with defer_loading.</div>
+      </div>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-dot" style="background:oklch(0.30 0.15 280);color:var(--accent2);">2</div>
+      <div class="pipe-content">
+        <div class="pipe-title">LLM API Streaming</div>
+        <div class="pipe-desc">4 backends (Anthropic / Bedrock / Azure / Vertex). Retry with backoff. 90s idle timeout. Token counting.</div>
+      </div>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-dot" style="background:oklch(0.30 0.15 50);color:var(--accent3);">3</div>
+      <div class="pipe-content">
+        <div class="pipe-title">Permission Check</div>
+        <div class="pipe-desc">4-step pipeline + auto-mode classifier. 7 modes. deny always beats allow. 23 bash security validators.</div>
+      </div>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-dot" style="background:oklch(0.30 0.15 330);color:var(--accent4);">4</div>
+      <div class="pipe-content">
+        <div class="pipe-title">Tool Execution</div>
+        <div class="pipe-desc">StreamingToolExecutor: concurrent-safe tools run in parallel, unsafe ones exclusive. Bash error cascades siblings.</div>
+      </div>
+    </div>
+    <div class="pipe-step">
+      <div class="pipe-dot" style="background:oklch(0.30 0.15 160);color:var(--accent);">5</div>
+      <div class="pipe-content">
+        <div class="pipe-title">Result &rarr; Next Turn</div>
+        <div class="pipe-desc">ToolResult{data, newMessages?, contextModifier?, mcpMeta?} feeds back to LLM. 8-stage recovery on failure.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Verification -->
+<section>
+  <div class="section-label">Quality Assurance</div>
+  <div class="section-title">8-Pass Verification</div>
+  <p class="section-desc">39 corrections + 42 implementation caveats. Final pass: 24/24 random spot-checks verified.</p>
+
+  <div class="verify-container" id="verify">
+    <div class="verify-row"><div class="verify-label">Pass 1</div><div class="verify-bar"><div class="verify-fill" style="--w:85%;background:var(--accent);">16 corrections</div></div><div class="verify-count">16</div></div>
+    <div class="verify-row"><div class="verify-label">Pass 2</div><div class="verify-bar"><div class="verify-fill" style="--w:22%;background:var(--accent2);">4 blocking fixes</div></div><div class="verify-count">4</div></div>
+    <div class="verify-row"><div class="verify-label">Pass 3</div><div class="verify-bar"><div class="verify-fill" style="--w:37%;background:var(--accent3);">7 precision fixes</div></div><div class="verify-count">7</div></div>
+    <div class="verify-row"><div class="verify-label">Pass 4</div><div class="verify-bar"><div class="verify-fill" style="--w:16%;background:var(--accent4);">3 schema additions</div></div><div class="verify-count">3</div></div>
+    <div class="verify-row"><div class="verify-label">Pass 5</div><div class="verify-bar"><div class="verify-fill" style="--w:37%;background:oklch(0.68 0.15 220);">7 infra additions</div></div><div class="verify-count">7</div></div>
+    <div class="verify-row"><div class="verify-label">Pass 6</div><div class="verify-bar"><div class="verify-fill" style="--w:100%;background:linear-gradient(90deg,var(--danger),var(--warn));">42 caveats added</div></div><div class="verify-count">42</div></div>
+    <div class="verify-row"><div class="verify-label">Pass 7</div><div class="verify-bar"><div class="verify-fill" style="--w:10%;background:var(--success);">2 micro-fixes</div></div><div class="verify-count">2</div></div>
+    <div class="verify-row"><div class="verify-label">Pass 8</div><div class="verify-bar"><div class="verify-fill" style="--w:100%;background:var(--success);">CONVERGED &mdash; 24/24 verified</div></div><div class="verify-count">&check;</div></div>
+  </div>
+</section>
+
+<!-- Cost -->
+<section>
+  <div class="section-label">Infrastructure</div>
+  <div class="section-title">Deployment Cost Analysis</div>
+  <p class="section-desc">Real pricing estimates across 4 deployment options. LLM tokens represent 60-95% of total cost.</p>
+
+  <table class="cost-table">
+    <thead>
+      <tr>
+        <th>Scale</th>
+        <th>Supabase + API</th>
+        <th>AWS Full</th>
+        <th>Azure</th>
+        <th>Hybrid (Local GPU)</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Solo</strong> (1 dev)</td>
+        <td><span class="cost-val cost-best">$9&ndash;103/mo</span></td>
+        <td><span class="cost-val">$240&ndash;280/mo</span></td>
+        <td><span class="cost-val">$250&ndash;300/mo</span></td>
+        <td><span class="cost-val">$50/mo</span></td>
+      </tr>
+      <tr>
+        <td><strong>Team</strong> (10 devs)</td>
+        <td><span class="cost-val">$46&ndash;116/dev</span></td>
+        <td><span class="cost-val">$65&ndash;110/dev</span></td>
+        <td><span class="cost-val">$70&ndash;120/dev</span></td>
+        <td><span class="cost-val cost-best">$35&ndash;60/dev</span></td>
+      </tr>
+      <tr>
+        <td><strong>Enterprise</strong> (100)</td>
+        <td><span class="cost-val">N/A</span></td>
+        <td><span class="cost-val">$45&ndash;111/dev</span></td>
+        <td><span class="cost-val">$50&ndash;115/dev</span></td>
+        <td><span class="cost-val cost-best">$25/dev</span></td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- Key Caveats -->
+<section>
+  <div class="section-label">Implementation Warnings</div>
+  <div class="section-title">Critical Caveats</div>
+  <p class="section-desc">19 WILL_CAUSE_BUG-level issues documented. These are the most dangerous ones.</p>
+
+  <div class="caveat-grid">
+    <div class="caveat">
+      <div class="caveat-sev sev-bug">WILL_CAUSE_BUG</div>
+      <div class="caveat-title">401 Token Refresh Loop</div>
+      <div class="caveat-desc">No max refresh count in withRetry(). Invalid tokens retry up to MAX_RETRIES=10 with same broken token.</div>
+    </div>
+    <div class="caveat">
+      <div class="caveat-sev sev-bug">WILL_CAUSE_BUG</div>
+      <div class="caveat-title">Settings Array Merge</div>
+      <div class="caveat-desc">deny + allow arrays concat (not override). Policy deny and user allow both exist in merged result.</div>
+    </div>
+    <div class="caveat">
+      <div class="caveat-sev sev-bug">WILL_CAUSE_BUG</div>
+      <div class="caveat-title">TOCTOU Path Validation</div>
+      <div class="caveat-desc">Symlink can be swapped between validation and file access. Shared /tmp is exploitable.</div>
+    </div>
+    <div class="caveat">
+      <div class="caveat-sev sev-bug">WILL_CAUSE_BUG</div>
+      <div class="caveat-title">Hook Input Not Chained</div>
+      <div class="caveat-desc">PreToolUse hooks run in parallel via Promise.all(). Each sees original input, not previous hook's output.</div>
+    </div>
+    <div class="caveat">
+      <div class="caveat-sev sev-bug">WILL_CAUSE_BUG</div>
+      <div class="caveat-title">No Ink Error Boundary</div>
+      <div class="caveat-desc">Custom reconciler has no error boundary. Component render throw crashes entire TUI.</div>
+    </div>
+    <div class="caveat">
+      <div class="caveat-sev sev-warn">CONFUSION</div>
+      <div class="caveat-title">React 19 Concurrency Off</div>
+      <div class="caveat-desc">maySuspendCommit() always returns false. Suspense and useTransition() are silently disabled.</div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <p>
+    <a href="https://github.com/jung-wan-kim/claude-code-reverse-engineering">GitHub Repository</a>
+    &middot; 28 files &middot; 19,800 lines &middot; MIT License
+  </p>
+  <p style="margin-top:0.5rem;">Educational and security research purposes. All rights to Claude Code belong to <a href="https://www.anthropic.com">Anthropic</a>.</p>
+</footer>
+
+<script>
+  // Animate verification bars on scroll
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting) {
+        entry.target.querySelectorAll('.verify-fill').forEach((el, i) => {
+          setTimeout(() => el.classList.add('animate'), i * 120);
+        });
+        observer.unobserve(entry.target);
+      }
+    });
+  }, { threshold: 0.3 });
+
+  const verifySection = document.getElementById('verify');
+  if (verifySection) observer.observe(verifySection);
+</script>
+
+</body>
+</html>
